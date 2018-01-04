@@ -132,13 +132,70 @@ class SelectorDIC(ModelSelector):
     http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.58.6208&rep=rep1&type=pdf
     https://pdfs.semanticscholar.org/ed3d/7c4a5f607201f3848d4c02dd9ba17c791fc2.pdf
     DIC = log(P(X(i)) - 1/(M-1)SUM(log(P(X(all but i))
+    where ~ log(P(X(i)) is the probability of the evidence or model score
+          ~ log(P(X(all but i)) is the probability of the anti evidence or prob of all the words except the word you're studying
     '''
 
+    def anti_dic_score(self, hmm_model):
+        """ gets the average model score calculation for all words except this_word """
+        total_score = 0
+        word_count = 0
+        avg_score = 0
+        
+        for word, features in self.hwords.items():
+            if self.this_word != word:
+                X, lengths = features
+                score = hmm_model.score(X, lengths)
+                total_score += score
+                word_count += 1
+                    
+        avg_score = total_score / word_count
+        return avg_score
+                
+    
+    def dic_model(self, num_states):
+        """determines the DIC score for the given number of states"""
+        
+        hmm_model = self.base_model(num_states)
+        
+        # log(P(X(i))
+        p_evidence = hmm_model.score(self.X, self.lengths)
+        # 1/(M-1)SUM(log(P(X(all but i))
+        p_anti_evidence = self.anti_dic_score(hmm_model)
+        dic_score = p_evidence - p_anti_evidence
+        
+        return dic_score, hmm_model
+        
+    
+    
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection based on DIC scores
-        raise NotImplementedError
+        try: 
+            best_num_states = 1
+            best_dic_score = float("-inf")
+            best_model = self.base_model(self.n_constant)
+                    
+            # implement model selection based on DIC scores
+            for n in range(self.min_n_components, self.max_n_components):
+                try:
+                    score, model = self.dic_model(n)
+                    if score > best_dic_score:
+                        best_dic_score = score
+                        best_model = model
+                        best_num_states = n
+
+                except:
+                    if self.verbose:
+                        print("failure on {} with {} states".format(self.this_word, num_states))
+                    pass
+                
+            if self.verbose:
+                print("model created for {} with {} states".format(self.this_word, best_num_states))
+            return best_model
+         
+        except:
+            return None
 
 
 class SelectorCV(ModelSelector):
