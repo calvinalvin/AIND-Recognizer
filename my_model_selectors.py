@@ -66,7 +66,30 @@ class SelectorBIC(ModelSelector):
 
     http://www2.imm.dtu.dk/courses/02433/doc/ch6_slides.pdf
     Bayesian information criteria: BIC = -2 * logL + p * logN
+    where ~ L is the likelihood of the fitted model
+          ~ p is the number of parameters
+          ~ N is the number of data points
     """
+    
+    def bic_model(self, num_states):
+        """ gets the BIC score for a model given the number HMM hidden states
+        parameters =  n_components*n_components + 2*n_components*n_features - 1
+        logL = word_score
+        logN = log(number_of_data_points)
+        BIC = -2 * logL + parameters * logN
+        """
+        
+        hmm_model = self.base_model(num_states)
+        
+        # Parameters = Initial state occupation probabilities + Transition probabilities + Emission probabilities
+        # ~ Initial state occupation probabilities = numStates
+        # ~ Transition probabilities = numStates*(numStates - 1)
+        # ~ Emission probabilities = numStates*numFeatures*2 = numMeans+numCovars
+        p = num_states*num_states + 2*num_states*len(self.X[0])-1
+        logL = hmm_model.score(self.X, self.lengths)
+        logN = math.log(len(self.X))
+        bic = -2 * logL + p * logN
+        return bic, hmm_model
 
     def select(self):
         """ select the best model for self.this_word based on
@@ -75,9 +98,30 @@ class SelectorBIC(ModelSelector):
         :return: GaussianHMM object
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-        # TODO implement model selection based on BIC scores
-        raise NotImplementedError
+        
+        try:
+            best_num_states = 1
+            best_bic_score = float("-inf")
+            best_model = self.base_model(self.n_constant)
+            
+            for n in range(self.min_n_components, self.max_n_components):
+                try:
+                    score, model = self.bic_model(n)
+                    if score > best_bic_score:
+                        best_bic_score = score
+                        best_num_states = n
+                        best_model = model
+                except:
+                    if self.verbose:
+                        print("failure on {} with {} states".format(self.this_word, num_states))
+                    pass
+              
+            if self.verbose:
+                print("model created for {} with {} states".format(self.this_word, best_num_states))
+            return best_model
+        
+        except:
+            return None
 
 
 class SelectorDIC(ModelSelector):
@@ -102,8 +146,55 @@ class SelectorCV(ModelSelector):
 
     '''
 
+    def cross_validation_model(self, num_states, n_splits=3):
+        """ builds a model using a kfolds split data set against training data/ test data to avoid overfitting
+        """
+        total_score = 0
+        
+        if(len(self.sequences) > n_splits):
+            split_method = KFold(n_splits=n_splits)
+            folds = 0
+            
+            for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
+                folds +=1
+                # split the data into training and test validation data
+                X_train, lengths_train = combine_sequences(cv_train_idx, self.sequences)
+                X_test, lengths_test = combine_sequences(cv_test_idx, self.sequences)
+                 
+                # train on just the train data
+                training_model = GaussianHMM(n_components=num_states, covariance_type="diag", n_iter=1000,
+                            random_state=self.random_state, verbose=False).fit(X_train, lengths_train)
+
+                # then test against the test data
+                score = training_model.score(X_test, lengths_test)
+                total_score += score
+             
+            # return the average of the all the scores
+            avg_score = total_score/folds
+            return avg_score, training_model
+        
+        else:
+            return 0., self.base_model(self.n_constant)
+        
+    
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        
+        best_num_states = 0
+        best_score = float("-inf")
+        best_model = None
 
-        # TODO implement model selection using CV
-        raise NotImplementedError
+        try:
+            for n in range(self.min_n_components, self.max_n_components):
+                score, model = self.cross_validation_model(n)
+                if score >= best_score:
+                    best_score = score
+                    best_model = model
+                    best_num_state = n
+                    
+            return best_model
+
+        except Exception as e: 
+            print(e)
+            return None
+            
