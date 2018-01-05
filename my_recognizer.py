@@ -33,17 +33,15 @@ def recognize(models: dict, test_set: SinglesData):
                 if model:
                     score = model.score(test_X, test_Xlength)
                     words_prob[word] = score
-                    print("score for word {} is {}".format(word, score))
+                    #print("score for word {} is {}".format(word, score))
                     
                     if score > best_score:
                         guess_word = word
                         best_score = score
-                else:
-                    print("word {} has no attached model".format(word))
-                        
                         
             except Exception as err:
-                print("Got error for word {}: {}".format(word, err))
+                pass
+                #print("Got error for word {}: {}".format(word, err))
                 
         probabilities.append(words_prob)
         guesses.append(guess_word)
