@@ -160,12 +160,11 @@ class SelectorDIC(ModelSelector):
         
         # log(P(X(i))
         p_evidence = hmm_model.score(self.X, self.lengths)
-        # 1/(M-1)SUM(log(P(X(all but i))
+        # 1/(M-1)SUM(log(P(X(all but i)), basically the average score of all words e
         p_anti_evidence = self.anti_dic_score(hmm_model)
         dic_score = p_evidence - p_anti_evidence
         
         return dic_score, hmm_model
-        
     
     
     def select(self):
