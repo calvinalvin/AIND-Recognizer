@@ -40,7 +40,7 @@ def recognize(models: dict, test_set: SinglesData):
                         best_score = score
                         
             except Exception as err:
-                pass
+                continue
                 #print("Got error for word {}: {}".format(word, err))
                 
         probabilities.append(words_prob)
